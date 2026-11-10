@@ -1,3 +1,28 @@
+# doc/~WRL3271.tmp
+# .DS_Store
+# food-deliver/.github
+
+# Temporary files
 doc/~WRL3271.tmp
+
+# System files
 .DS_Store
-food-deliver/.github
+Thumbs.db
+
+# GitHub configuration
+# Do not ignore .github
+
+# Dependencies
+**/node_modules/
+
+# Build files
+**/dist/
+**/dist-ssr/
+
+# Environment variables
+**/.env
+**/.env.*
+!**/.env.example
+
+# Uploaded files
+**/uploads/
