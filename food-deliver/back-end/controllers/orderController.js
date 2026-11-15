@@ -5,7 +5,7 @@ import droneModel from "../models/droneModel.js";
 import restaurantProfileModel from "../models/restaurantProfile.js";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder")
 
 const placeOrder = async (req,res) => {
     const frontend_url = "http://localhost:5173";

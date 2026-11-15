@@ -67,7 +67,7 @@ const PlaceOrder = () => {
         window.location.replace(session_url);
       }
       else{
-        toast.error(response.data.message || "Lỗi đặt hàng");
+        toast.error(response.data.message || "Failed to place order");
         console.log(response.data);
       }
     } catch (error) {

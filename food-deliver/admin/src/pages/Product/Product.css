@@ -1,0 +1,131 @@
+.product-page {
+    width: 100%;
+    padding: 30px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.product-page h2 {
+    margin-bottom: 25px;
+    color: #333;
+}
+
+.product-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 600px;
+}
+
+.product-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.product-field input,
+.product-field select,
+.product-field textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    outline-color: tomato;
+}
+
+.product-image img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border: 2px dashed #ccc;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.product-fields {
+    display: flex;
+    gap: 20px;
+}
+
+.product-fields .product-field {
+    flex: 1;
+}
+
+.product-button {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 5px;
+    background: tomato;
+    color: white;
+    cursor: pointer;
+}
+
+.product-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.product-heading h2 {
+    margin: 0;
+}
+
+.product-table {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.product-row {
+    min-width: 750px;
+    display: grid;
+    grid-template-columns: 70px 1.5fr 1fr 1fr 1.2fr 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 8px;
+    border-bottom: 1px solid #eee;
+    color: #555;
+    font-size: 14px;
+}
+
+.product-title {
+    background: #f8f8f8;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.product-row img {
+    width: 55px;
+    height: 55px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.product-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.product-actions button {
+    border: none;
+    background: none;
+    color: #007bff;
+    cursor: pointer;
+}
+
+.product-empty {
+    padding: 20px 8px;
+    color: #777;
+}
+
+@media (max-width: 600px) {
+    .product-page {
+        padding: 15px;
+    }
+
+    .product-fields {
+        flex-direction: column;
+    }
+}

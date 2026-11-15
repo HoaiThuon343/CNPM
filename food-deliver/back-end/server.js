@@ -13,27 +13,26 @@ import droneRouter from "./routes/droneRoute.js"
 const app = express()
 const port = 4000
 
-//middleware
+// middleware
 app.use(express.json())
 app.use(cors())
 
 // db connection
-connectDB();
+connectDB()
 
 // api endpoints
-app.use("/api/food",foodRouter)
+app.use("/api/food", foodRouter)
 app.use('/images', express.static('uploads'))
-app.use("/api/user",userRouter)
-app.use("/api/cart",cartRouter)
-app.use("/api/order",orderRouter)
+app.use("/api/user", userRouter)
+app.use("/api/cart", cartRouter)
+app.use("/api/order", orderRouter)
 app.use("/api/restaurant", resRouter)
-app.use("/api/drone", droneRouter);
+app.use("/api/drone", droneRouter)
 
-
-app.get("/",(req,res)=> {
+app.get("/", (req, res) => {
     res.send("API Working")
 })
-app.listen(port,()=>{
+
+app.listen(port, () => {
     console.log(`Server Started on http://localhost:${port}`)
 })
-

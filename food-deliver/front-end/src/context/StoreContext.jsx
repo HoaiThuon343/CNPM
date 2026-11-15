@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState } from "react";
+import { createContext, useEffect, useState, useCallback } from "react";
 import { menu_list } from "../assets/assets";
 import axios from "axios";
 export const StoreContext = createContext(null);
@@ -8,6 +8,7 @@ const StoreContextProvider = (props) => {
 
     const url = "http://localhost:4000";
     const [food_list, setFoodList] = useState([]);
+    const [loadingFoodList, setLoadingFoodList] = useState(true);
     const [cartItems, setCartItems] = useState({});
     const [token, setToken] = useState("");
     const [showLogin, setShowLogin] = useState(false);
@@ -65,7 +66,7 @@ const StoreContextProvider = (props) => {
     const deleteItemFromCart = async (itemId, restaurantId) => {
         setCartItems((prev) => {
             const newCart = { ...prev };
-            
+
             if (newCart[restaurantId]) {
                 // Xóa hẳn món ăn khỏi state
                 delete newCart[restaurantId][itemId];
@@ -104,19 +105,34 @@ const StoreContextProvider = (props) => {
         return totalAmount;
     }
 
-    const fetchFoodList = async () => {
-        try {
-            let endpoint = (category === "All")
-                ? "/api/food/all"
-                : `/api/food/list/menu/${category}`;
+    // const fetchFoodList = async () => {
+    //     try {
+    //         let endpoint = (category === "All")
+    //             ? "/api/food/all"
+    //             : `/api/food/list/menu/${category}`;
 
-            const response = await axios.get(url + endpoint);
-            setFoodList(response.data.data);
+    //         const response = await axios.get(url + endpoint);
+    //         setFoodList(response.data.data);
+    //     } catch (error) {
+    //         console.error("Error fetching food list:", error);
+    //         toast.error("Could not load food items.");
+    //     }
+    // }
+
+    const fetchFoodList = useCallback(async () => {
+        try {
+            const response = await axios.get(url + "/api/food/all");
+
+            if (response.data.success) {
+                setFoodList(response.data.data || []);
+            }
         } catch (error) {
             console.error("Error fetching food list:", error);
             toast.error("Could not load food items.");
+        } finally {
+            setLoadingFoodList(false);
         }
-    }
+    }, [url]);
 
     const loadCartData = async (token) => {
         try {
@@ -137,9 +153,12 @@ const StoreContextProvider = (props) => {
         loadInitialData();
     }, [])
 
+    // useEffect(() => {
+    //     fetchFoodList();
+    // }, [category]);
     useEffect(() => {
         fetchFoodList();
-    }, [category]);
+    }, [fetchFoodList]);
 
     const contextValue = {
         url,
@@ -162,6 +181,8 @@ const StoreContextProvider = (props) => {
         category,
         setCategory,
         deleteItemFromCart,
+        loadingFoodList,
+        fetchFoodList,
     };
 
     return (

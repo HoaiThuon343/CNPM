@@ -22,18 +22,18 @@ const Verify = () => {
 
             // Nếu backend trả về {success: true}
             if (response.data.success) {
-                toast.success("Thanh toán đã được xác minh!");
+                toast.success("Payment verified successfully!");
                 navigate("/myorders"); // <-- NÓ SẼ TỰ ĐỘNG CHUYỂN BẠN TỚI ĐÂY
             } 
             // Nếu backend trả về {success: false}
             else {
-                toast.error("Xác minh thanh toán thất bại.");
+                toast.error("Payment verification failed.");
                 navigate("/"); // Chuyển về trang chủ
             }
         } catch (error) {
             // Nếu API bị lỗi (500, 404, v.v.)
             console.error("Lỗi khi xác minh thanh toán:", error);
-            toast.error("Xác minh thanh toán thất bại.");
+            toast.error("Payment verification failed.");
             navigate("/"); // Chuyển về trang chủ
         }
     };
