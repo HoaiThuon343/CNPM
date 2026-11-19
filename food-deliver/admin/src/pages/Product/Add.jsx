@@ -36,7 +36,7 @@ const Add = ({ url }) => {
         Object.keys(data).forEach(key => formData.append(key, data[key]))
 
         try {
-            const response = await axios.post(`${url}/api/food/add`, formData, {
+            const response = await axios.post(`${url}/api/product/add`, formData, {
                 headers: { Authorization: `Bearer ${token}` }
             })
 

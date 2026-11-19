@@ -1,41 +1,15 @@
-// import React , {useState} from 'react'
-// import './Menu.css'
-// import ExploreMenu from '../../component/ExploreMenu/ExploreMenu'
-// import FoodDisplay from '../../component/FoodDisplay/FoodDisplay'
-// import FoodItemDetail from '../../component/FoodItemDetail/FoodItemDetail'
-
-// const Menu = ({setShowLogin}) => {
-
-//   const [category,setCategory] = useState('All')
-//   const [selectedFoodItem, setSelectedFoodItem] = useState(null);
-
-//   return (
-//     <div>
-//       <ExploreMenu category={category} setCategory={setCategory} />
-//       <FoodDisplay category={category} setShowLogin={setShowLogin} setSelectedFoodItem={setSelectedFoodItem}/>
-
-//       <FoodItemDetail 
-//         foodItem={selectedFoodItem} 
-//         onClose={() => setSelectedFoodItem(null)} 
-//       />
-//     </div>
-//   )
-// }
-
-// export default Menu
-
 import React, { useState } from 'react'
 import './Menu.css'
 import ExploreMenu from '../../component/ExploreMenu/ExploreMenu'
-import FoodDisplay from '../../component/FoodDisplay/FoodDisplay'
-import FoodItemDetail from '../../component/FoodItemDetail/FoodItemDetail'
+import ProductDisplay from '../../component/ProductDisplay/ProductDisplay'
+import ProductDetail from '../../component/ProductDetail/ProductDetail'
 
 const Menu = ({ setShowLogin }) => {
 
   const [category, setCategory] = useState('All')
   const [keyword, setKeyword] = useState('')
   const [sortBy, setSortBy] = useState('default')
-  const [selectedFoodItem, setSelectedFoodItem] = useState(null)
+  const [selectedProduct, setSelectedProduct] = useState(null)
 
   return (
     <div className="menu-page">
@@ -64,17 +38,17 @@ const Menu = ({ setShowLogin }) => {
         setCategory={setCategory}
       />
 
-      <FoodDisplay
+      <ProductDisplay
         category={category}
         keyword={keyword}
         sortBy={sortBy}
         setShowLogin={setShowLogin}
-        setSelectedFoodItem={setSelectedFoodItem}
+        setSelectedProduct={setSelectedProduct}
       />
 
-      <FoodItemDetail
-        foodItem={selectedFoodItem}
-        onClose={() => setSelectedFoodItem(null)}
+      <ProductDetail
+        product={selectedProduct}
+        onClose={() => setSelectedProduct(null)}
       />
 
     </div>

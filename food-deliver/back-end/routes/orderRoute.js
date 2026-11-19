@@ -1,21 +1,25 @@
 import express from "express";
 import checkAuth from "../middleware/checkAuth.js";
-import {placeOrder, verifyOrder, userOrders, listOrders, updateStatus, listRestaurantOrders} from "../controllers/orderController.js";
+import checkRole from "../middleware/checkRole.js";
+import {
+    placeOrder,
+    userOrders,
+    listOrders,
+    updateStatus,
+    cancelOrder,
+    updatePaymentStatus
+} from "../controllers/orderController.js";
 
 const orderRouter = express.Router();
 
-orderRouter.post("/place", checkAuth ,placeOrder);
-orderRouter.post("/verify",verifyOrder);
+// Customer order operations
+orderRouter.post("/place", checkAuth, checkRole(["user"]), placeOrder);
+orderRouter.post("/userorders", checkAuth, checkRole(["user"]), userOrders);
+orderRouter.post("/cancel", checkAuth, checkRole(["user"]), cancelOrder);
 
-// Lấy đơn hàng của user
-orderRouter.post("/userorders", checkAuth ,userOrders); 
-
-// Admin lấy tất cả đơn hàng
-orderRouter.post('/list', checkAuth ,listOrders);
-
-orderRouter.post("/status", checkAuth ,updateStatus); 
-
-// Nhà hàng lấy đơn hàng của mình
-orderRouter.post("/restaurantorders", checkAuth ,listRestaurantOrders);
+// Administrator order operations
+orderRouter.post("/list", checkAuth, checkRole(["admin"]), listOrders);
+orderRouter.post("/status", checkAuth, checkRole(["admin"]), updateStatus);
+orderRouter.post("/payment", checkAuth, checkRole(["admin"]), updatePaymentStatus);
 
 export default orderRouter;

@@ -2,7 +2,7 @@ import React from 'react'
 import './Verify.css'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useContext } from 'react';
-import { StoreContext } from '../../context/StoreContext';
+import { StoreContext } from '../../context/storeContext';
 import axios from 'axios';
 import { useEffect } from 'react';
 import { toast } from 'react-toastify'; // Phải import toast

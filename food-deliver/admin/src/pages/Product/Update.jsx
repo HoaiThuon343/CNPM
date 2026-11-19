@@ -9,19 +9,19 @@ const Update = ({ url }) => {
 
     const { state } = useLocation()
     const navigate = useNavigate()
-    const food = state?.food
+    const product = state?.product
 
     const [image, setImage] = useState(null)
     const [preview, setPreview] = useState(
-        food ? `${url}/images/${food.image}` : assets.upload_area
+        product ? `${url}/images/${product.image}` : assets.upload_area
     )
 
     const [data, setData] = useState({
-        name: food?.name || '',
-        description: food?.description || '',
-        category: food?.category || 'Fast food',
-        price: food?.price ?? '',
-        status: food?.status || 'active'
+        name: product?.name || '',
+        description: product?.description || '',
+        category: product?.category || 'Fast food',
+        price: product?.price ?? '',
+        status: product?.status || 'active'
     })
 
     const token = localStorage.getItem('token')
@@ -33,20 +33,20 @@ const Update = ({ url }) => {
     const onSubmitHandler = async (e) => {
         e.preventDefault()
 
-        if (!food) {
+        if (!product) {
             toast.error('Product not found')
             navigate('/products/list')
             return
         }
 
         const formData = new FormData()
-        formData.append('id', food._id)
+        formData.append('id', product._id)
         Object.keys(data).forEach(key => formData.append(key, data[key]))
 
         if (image) formData.append('image', image)
 
         try {
-            const response = await axios.post(`${url}/api/food/update`, formData, {
+            const response = await axios.post(`${url}/api/product/update`, formData, {
                 headers: { Authorization: `Bearer ${token}` }
             })
 
@@ -61,7 +61,7 @@ const Update = ({ url }) => {
         }
     }
 
-    if (!food) return null
+    if (!product) return null
 
     return (
         <div className="product-page">

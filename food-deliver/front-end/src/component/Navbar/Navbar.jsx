@@ -2,20 +2,19 @@ import React, {useContext, useState} from 'react'
 import './Navbar.css'
 import { assets } from '../../assets/assets'
 import { Link, useNavigate } from 'react-router-dom';
-import { StoreContext } from '../../context/StoreContext';
+import { StoreContext } from '../../context/storeContext';
 import { toast } from 'react-toastify';
 
 const Navbar = ({setShowLogin}) => {
 
     const [menu,setMenu] = useState("home");
 
-    const {getTotalCartAmount,token,setToken} = useContext(StoreContext);
+    const {getTotalCartAmount,token,logout:clearLogin} = useContext(StoreContext);
 
     const navigate = useNavigate();
     const logout = () => {
       toast.success("Logged out successfully!");
-      localStorage.removeItem("token");
-      setToken("");
+      clearLogin();
       navigate("/");
     }
 

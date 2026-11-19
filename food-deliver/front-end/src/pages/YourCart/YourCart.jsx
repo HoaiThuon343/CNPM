@@ -1,120 +1,168 @@
-import React, { useContext } from 'react';
-import './YourCart.css';
-import { StoreContext } from '../../context/StoreContext';
-import { useNavigate } from 'react-router-dom';
+
+import { useContext } from 'react'
+import { toast } from 'react-toastify'
+import './YourCart.css'
+import { StoreContext } from '../../context/storeContext.js'
+import { useNavigate } from 'react-router-dom'
 
 const YourCart = () => {
-  const { cartItems, food_list, url, currency, removeFromCart, addToCart, deleteItemFromCart } = useContext(StoreContext);
-  const navigate = useNavigate();
+    const {
+        cartItems,
+        product_list,
+        loadingProductList,
+        loadingCart,
+        url,
+        currency,
+        addToCart,
+        removeFromCart,
+        deleteItemFromCart
+    } = useContext(StoreContext)
 
-  const restaurantIds = Object.keys(cartItems);
+    const navigate = useNavigate()
 
-  const getRestaurantName = (restaurantCart) => {
-    try {
-      const firstFoodId = Object.keys(restaurantCart)[0];
-      const foodItem = food_list.find((item) => item._id === firstFoodId);
-      // Hiển thị tên nhà hàng hoặc ID nếu không tìm thấy tên
-      return foodItem?.restaurantName || "Unknown Restaurant";
-    } catch (error) {
-      return "Restaurant";
+    const cartProducts = (product_list || []).filter(
+        item => Number(cartItems?.[item._id]) > 0
+    )
+
+    const subtotal = cartProducts.reduce(
+        (total, item) =>
+            total + Number(item.price) * Number(cartItems[item._id]),
+        0
+    )
+
+    const formatPrice = price =>
+        `${currency}${Number(price || 0).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`
+
+    const handleIncrease = async (itemId) => {
+        try {
+            await addToCart(itemId)
+        } catch (error) {
+            toast.error(error.message || 'Failed to update cart.')
+        }
     }
-  };
 
-  const handleCheckout = (restaurantId) => {
-    navigate('/cart', { state: { restaurantIdToCheckout: restaurantId } });
-  };
+    const handleDecrease = async (itemId) => {
+        try {
+            await removeFromCart(itemId)
+        } catch (error) {
+            toast.error(error.message || 'Failed to update cart.')
+        }
+    }
 
-  const hasActiveCarts = restaurantIds.some(resId => {
-      const restaurantCart = cartItems[resId];
-      if (!restaurantCart) return false;
-      return Object.values(restaurantCart).some(qty => qty > 0);
-  });
+    const handleRemove = async (itemId) => {
+        try {
+            await deleteItemFromCart(itemId)
+        } catch (error) {
+            toast.error(error.message || 'Failed to remove product.')
+        }
+    }
 
-  return (
-    <div className='your-cart'>
-      <div className="cart-container">
-        {!hasActiveCarts ? (
-          <div className='cart-empty'>
-            <h2>Your cart is empty.</h2>
-            <p>Looks like you haven't added anything to your cart yet.</p>
-          </div>
-        ) : (
-          <>
-            <h2 className='cart-title'>Your Carts</h2>
-            <p className='cart-subtitle'>You have items from different restaurants. Please check out each one separately.</p>
+    const handleCheckout = () => {
+        if (cartProducts.length > 0) {
+            navigate('/cart')
+        }
+    }
 
-            {restaurantIds.map((resId) => {
-              const restaurantCart = cartItems[resId];
-              if (!restaurantCart) return null; 
-              const itemIds = Object.keys(restaurantCart);
-              let subtotal = 0;
-              
-              const renderedItems = itemIds.map((foodId) => {
-                const item = food_list.find((product) => product._id === foodId);
-                const quantity = restaurantCart[foodId];
-                
-                if (item && quantity > 0) {
-                   const itemTotal = item.price * quantity;
-                   subtotal += itemTotal;
-                   return { item, quantity, itemTotal };
-                }
-                return null;
-              }).filter(Boolean);
+    if (loadingProductList || loadingCart) {
+        return <p className="your-cart-loading">Loading cart...</p>
+    }
 
-              if (subtotal === 0) {
-                  return null;
-              }
+    return (
+        <div className="your-cart">
+            <div className="cart-container">
+                {cartProducts.length === 0 ? (
+                    <div className="your-cart-empty">
+                        <h2>Your cart is empty.</h2>
+                        <p>Looks like you haven't added any products yet.</p>
+                    </div>
+                ) : (
+                    <>
+                        <h2 className="cart-title">Your Cart</h2>
 
-              // 3. NẾU CÓ TIỀN, MỚI RENDER GIAO DIỆN
-              return (
-                <div key={resId} className='restaurant-cart-summary'>
-                  
-                  <h3 className='restaurant-cart-name'>{getRestaurantName(restaurantCart)}</h3>
-                  
-                  <div className="cart-items-list">
-                    {renderedItems.map(({ item, quantity, itemTotal }) => (
-                        <div key={item._id} className='cart-item-row'>
-                            <img src={url + "/images/" + item.image} alt={item.name} className='cart-item-image' />
-                            <p className='cart-item-name'>{item.name}</p>
-                            <p className='cart-item-price'>{item.price.toFixed(2)} {currency}</p>
+                        <p className="cart-subtitle">
+                            Review your selected products before checkout.
+                        </p>
 
-                            <div className='quantity-control'>
-                                {/* Nút Giảm (-) gọi removeFromCart */}
-                                <button onClick={() => removeFromCart(item._id, resId)}>-</button>
-                                
-                                <span>{quantity}</span>
-                                
-                                {/* Nút Tăng (+) gọi addToCart */}
-                                <button onClick={() => addToCart(item._id)}>+</button>
+                        <div className="cart-summary">
+                            <div className="cart-items-list">
+                                {cartProducts.map(item => {
+                                    const quantity = Number(cartItems[item._id])
+                                    const itemTotal = Number(item.price) * quantity
+                                    const isAvailable = item.status === 'active'
+
+                                    return (
+                                        <div
+                                            key={item._id}
+                                            className="cart-item-row"
+                                        >
+                                            <img
+                                                src={`${url}/images/${item.image}`}
+                                                alt={item.name}
+                                                className="cart-item-image"
+                                            />
+
+                                            <p className="cart-item-name">
+                                                {item.name}
+                                            </p>
+
+                                            <p className="cart-item-price">
+                                                {formatPrice(item.price)}
+                                            </p>
+
+                                            <div className="quantity-control">
+                                                <button
+                                                    onClick={() => handleDecrease(item._id)}
+                                                    aria-label={`Decrease ${item.name} quantity`}
+                                                >
+                                                    -
+                                                </button>
+
+                                                <span>{quantity}</span>
+
+                                                <button
+                                                    onClick={() => handleIncrease(item._id)}
+                                                    disabled={!isAvailable}
+                                                    aria-label={`Increase ${item.name} quantity`}
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+
+                                            <p className="cart-item-total">
+                                                {formatPrice(itemTotal)}
+                                            </p>
+
+                                            <button
+                                                className="cart-item-remove"
+                                                onClick={() => handleRemove(item._id)}
+                                                aria-label={`Remove ${item.name}`}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    )
+                                })}
                             </div>
 
-                            <p className='cart-item-quantity'>x {quantity}</p>
-                            <p className='cart-item-total'>{itemTotal.toFixed(2)} {currency}</p>
-                            <p 
-                              onClick={() => deleteItemFromCart(item._id, resId)} 
-                              className='cart-item-remove'>x</p>
-                        </div>
-                    ))}
-                  </div>
-                  
-                  <div className='restaurant-cart-footer'>
-                    <div className='restaurant-cart-subtotal'>
-                      <p>Subtotal</p>
-                      <p>{subtotal.toFixed(2)} {currency}</p>
-                    </div>
-                    <button onClick={() => handleCheckout(resId)}>
-                      Checkout This Cart ({subtotal.toFixed(2)} {currency})
-                    </button>
-                  </div>
+                            <div className="cart-footer">
+                                <div className="cart-subtotal">
+                                    <p>Subtotal</p>
+                                    <p>{formatPrice(subtotal)}</p>
+                                </div>
 
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-    </div>
-  );
+                                <button onClick={handleCheckout}>
+                                    PROCEED TO CHECKOUT
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    )
 }
 
-export default YourCart;
+export default YourCart

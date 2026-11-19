@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react'
 import './RegisRes.css'
 import axios from 'axios'
 import { toast } from 'react-toastify'
-import { StoreContext } from '../../context/StoreContext' 
+import { StoreContext } from '../../context/storeContext'
 import { useNavigate } from 'react-router-dom'
 
 const RegisRes = () => {

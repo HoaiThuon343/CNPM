@@ -1,130 +1,210 @@
-import React, { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import './PlaceOrder.css';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { StoreContext } from "../../context/StoreContext"
-import axios from 'axios'
+import { useNavigate } from 'react-router-dom';
+import { StoreContext } from '../../context/storeContext.js';
+import axios from 'axios';
 import { toast } from 'react-toastify';
 
 const PlaceOrder = () => {
+    const {
+        token,
+        getTotalCartAmount,
+        loadingCart,
+        loadingProductList,
+        deliveryCharge,
+        currency,
+        url,
+        loadCartData
+    } = useContext(StoreContext);
 
-  // 1. Bỏ getTotalCartAmount từ context vì ta tự tính riêng
-  const { token, cartItems, food_list, url } = useContext(StoreContext)
-  const location = useLocation();
-  const navigate = useNavigate();
+    const navigate = useNavigate();
 
-  // 2. Lấy ID nhà hàng từ trang trước gửi qua
-  const restaurantId = location.state?.restaurantIdToCheckout;
-  
-  const [data, setData] = useState({
-        name: "",
-        email: "",
-        address: "",
-        phone: ""
-    })
+    const [data, setData] = useState({
+        name: '',
+        email: '',
+        address: '',
+        phone: ''
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 3. Hàm tính tổng tiền CHỈ CHO NHÀ HÀNG ĐANG CHỌN
-  const getRestaurantTotal = () => {
-    let totalAmount = 0;
-    // Kiểm tra xem có ID nhà hàng và giỏ hàng của nhà hàng đó không
-    if (restaurantId && cartItems[restaurantId]) {
-      for (const itemId in cartItems[restaurantId]) {
-        if (cartItems[restaurantId][itemId] > 0) {
-          let itemInfo = food_list.find((product) => product._id === itemId);
-          if (itemInfo) {
-            totalAmount += itemInfo.price * cartItems[restaurantId][itemId];
-          }
+    const subtotal = getTotalCartAmount();
+    const deliveryFee = subtotal > 0 ? deliveryCharge : 0;
+    const total = subtotal + deliveryFee;
+
+    const formatPrice = price =>
+        `${currency}${Number(price || 0).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
+
+    useEffect(() => {
+        if (loadingCart || loadingProductList || isSubmitting) return;
+
+        if (!token || subtotal <= 0) {
+            navigate('/cart', { replace: true });
         }
-      }
+    }, [
+        token,
+        subtotal,
+        loadingCart,
+        loadingProductList,
+        isSubmitting,
+        navigate
+    ]);
+
+    const onChangeHandler = event => {
+        const { name, value } = event.target;
+        setData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const placeOrder = async event => {
+        event.preventDefault();
+
+        if (!token) {
+            toast.error('Please log in to place an order.');
+            return;
+        }
+
+        if (subtotal <= 0) {
+            toast.error('Your cart is empty.');
+            navigate('/yourcart');
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        try {
+            const orderData = {
+                address: {
+                    name: data.name.trim(),
+                    email: data.email.trim(),
+                    address: data.address.trim(),
+                    phone: data.phone.trim()
+                }
+            };
+
+            const response = await axios.post(
+                `${url}/api/order/place`,
+                orderData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            if (!response.data.success) {
+                throw new Error(
+                    response.data.message || 'Failed to place order.'
+                );
+            }
+
+            toast.success('Your order has been placed successfully!');
+            navigate('/myorders', { replace: true });
+            await loadCartData(token);
+
+        } catch (error) {
+            console.error('Place order error:', error);
+            toast.error(
+                error.response?.data?.message ||
+                error.message ||
+                'Error placing order. Please try again.'
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (loadingCart || loadingProductList) {
+        return <p className="place-order-loading">Loading order information...</p>;
     }
-    return totalAmount;
-  }
 
-  // Tính toán ngay giá trị hiện tại
-  const currentTotal = getRestaurantTotal();
+    if (!token || subtotal <= 0) return null;
 
-  const onChangeHandler = (event) => {
-      const name = event.target.name
-      const value = event.target.value
-      setData(data => ({...data, [name]: value }))
-  }
+    return (
+        <div>
+            <form onSubmit={placeOrder} className="place-order">
+                <div className="place-order-left">
+                    <p className="title">Delivery Information</p>
 
-  const placeOrder = async (event) => {
-    event.preventDefault();   
-    
-    let orderData = {
-        address: data,
-        restaurantId: restaurantId, // 4. Gửi ID nhà hàng lên server
-        amount: currentTotal + 2 // Gửi kèm tổng tiền (đã cộng ship)
-    } 
+                    <input
+                        required
+                        name="name"
+                        type="text"
+                        value={data.name}
+                        onChange={onChangeHandler}
+                        placeholder="Full Name"
+                        autoComplete="name"
+                    />
 
-    try {
-      let response = await axios.post(url+"/api/order/place", orderData, { headers:{Authorization:`Bearer ${token}`} });
-      
-      console.log(response.data);
-      
-      if (response.data.success) {
-        const {session_url} = response.data;
-        window.location.replace(session_url);
-      }
-      else{
-        toast.error(response.data.message || "Failed to place order");
-        console.log(response.data);
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Error placing order. Please try again.");
-    }
-  }
+                    <input
+                        required
+                        name="email"
+                        type="email"
+                        value={data.email}
+                        onChange={onChangeHandler}
+                        placeholder="Email Address"
+                        autoComplete="email"
+                    />
 
-  useEffect(()=>{
-    if (!token) {
-      navigate('/cart')
-    }
-    // Nếu không có ID nhà hàng hoặc tổng tiền = 0 thì quay về cart
-    else if(!restaurantId || currentTotal === 0) {
-      navigate('/cart')
-    }
-  },[token, restaurantId, currentTotal, navigate])
+                    <input
+                        required
+                        name="address"
+                        type="text"
+                        value={data.address}
+                        onChange={onChangeHandler}
+                        placeholder="Delivery Address"
+                        autoComplete="street-address"
+                    />
 
+                    <input
+                        required
+                        name="phone"
+                        type="tel"
+                        value={data.phone}
+                        onChange={onChangeHandler}
+                        placeholder="Phone Number"
+                        autoComplete="tel"
+                    />
+                </div>
 
-  return (
-    <div>
-      <form onSubmit={placeOrder} className="place-order">
-        <div className="place-order-left">
-          <p className="title">Delivery Information</p>
-          <div className="multi-fields">
-            <input required name='name' onChange={onChangeHandler} value={data.name} type="text" placeholder='Name' />
-          </div>
-          <input required name='email' onChange={onChangeHandler} value={data.email} type="email" placeholder='Email Address' />
-          <input  required name='address' onChange={onChangeHandler} value={data.address} type="text" placeholder='Address' />
-          <div className="multi-fields">
-          </div>
-          <input required name='phone' onChange={onChangeHandler} value={data.phone} type="text" placeholder='phone' />
+                <div className="place-order-right">
+                    <div className="cart-total">
+                        <h2>Order Summary</h2>
+
+                        <div>
+                            <div className="cart-total-details">
+                                <p>Subtotal</p>
+                                <p>{formatPrice(subtotal)}</p>
+                            </div>
+
+                            <hr />
+
+                            <div className="cart-total-details">
+                                <p>Delivery Fee</p>
+                                <p>{formatPrice(deliveryFee)}</p>
+                            </div>
+
+                            <hr />
+
+                            <div className="cart-total-details">
+                                <b>Total</b>
+                                <b>{formatPrice(total)}</b>
+                            </div>
+                        </div>
+
+                        <p className="payment-method">
+                            Payment Method: Cash on Delivery (COD)
+                        </p>
+
+                        <button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? 'PLACING ORDER...' : 'PLACE ORDER'}
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
-        <div className="place-order-right">
-        <div className="cart-total">
-            <h2>Cart Total</h2>
-            <div>
-              <div className="cart-total-details">
-                <p>Subtotal</p>
-                <p>${currentTotal.toFixed(2)}</p>
-              </div>
-              <hr />
-              <div className="cart-total-details">
-                <p>Delivery free</p>
-                <p>${currentTotal === 0 ? 0 : 2}</p>
-              </div>
-              <hr />
-              <div className="cart-total-details">
-                <b>Total</b>
-                <b>${currentTotal === 0 ? 0 : (currentTotal + 2).toFixed(2)}</b>
-              </div>
-            </div>
-              <button type='submit' >PROCEED TO PAYMENT</button>
-          </div>
-        </div>
-      </form>
-    </div>
-  )
-}
+    );
+};
 
-export default PlaceOrder
+export default PlaceOrder;

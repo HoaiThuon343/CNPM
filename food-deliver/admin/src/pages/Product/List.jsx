@@ -12,7 +12,7 @@ const List = ({ url }) => {
 
     const fetchList = useCallback(async () => {
         try {
-            const response = await axios.get(`${url}/api/food/list`, {
+            const response = await axios.get(`${url}/api/product/list`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
 
@@ -28,12 +28,12 @@ const List = ({ url }) => {
         fetchList()
     }, [fetchList])
 
-    const removeFood = async (id) => {
+    const removeProduct = async (id) => {
         if (!window.confirm('Are you sure you want to deactivate this product?')) return
 
         try {
             const response = await axios.post(
-                `${url}/api/food/remove`,
+                `${url}/api/product/remove`,
                 { id },
                 { headers: { Authorization: `Bearer ${token}` } }
             )
@@ -92,13 +92,13 @@ const List = ({ url }) => {
 
                         <div className="product-actions">
                             <button onClick={() => navigate('/products/update', {
-                                state: { food: item }
+                                state: { product: item }
                             })}>
                                 Edit
                             </button>
 
                             {item.status !== 'inactive' && (
-                                <button onClick={() => removeFood(item._id)}>
+                                <button onClick={() => removeProduct(item._id)}>
                                     Deactivate
                                 </button>
                             )}

@@ -1,5 +1,5 @@
 import resModel from "../models/restaurantProfile.js";
-import foodModel from "../models/foodModel.js";
+import productModel from "../models/productModel.js";
 
 //Admin
 const getAllRestaurants = async (req, res) => {
@@ -31,7 +31,7 @@ const getRestaurantById = async (req, res) => {
 const getFoodsByRestaurantId = async (req, res) => {
     const { id } = req.params;
     try {
-        const foods = await foodModel.find({ restaurantId: id }); 
+        const foods = await productModel.find({ restaurantId: id });
         res.json({ success: true, data: foods });
     } catch (error) {
         console.log(error);
@@ -115,7 +115,7 @@ const deleteMyRestaurant = async (req, res) => {
         if (!profile) {
             return res.json({ success: false, message: "Restaurant profile not found" });
         }
-        await foodModel.deleteMany({ restaurantId: profile._id });
+        await productModel.deleteMany({ restaurantId: profile._id });
 
         res.json({ success: true, message: "Restaurant profile and all associated foods deleted" });
     } catch (error) {

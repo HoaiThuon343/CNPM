@@ -1,18 +1,16 @@
 
-import React, { useState, useContext } from 'react';
+import { useState, useContext } from 'react';
 import './LoginPopup.css';
 import { assets } from '../../assets/assets';
-import { StoreContext } from '../../context/StoreContext';
+import { StoreContext } from '../../context/storeContext.js'
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
 const LoginPopup = ({ setShowLogin }) => {
     const { url, setToken, setRole } = useContext(StoreContext);
-    const urlAdmin = 'http://localhost:5174';
-    const urlOwner = 'http://localhost:5175';
-
     const [currState, setCurrState] = useState('Login');
     const [data, setData] = useState({ name: '', email: '', password: '' });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const onChangHandler = (event) => {
         const name = event.target.name;
@@ -22,6 +20,7 @@ const LoginPopup = ({ setShowLogin }) => {
 
     const onLogin = async (event) => {
         event.preventDefault();
+        setIsSubmitting(true);
 
         let newUrl = url;
         if (currState === 'Login') {
@@ -31,10 +30,14 @@ const LoginPopup = ({ setShowLogin }) => {
         }
 
         try {
-            const response = await axios.post(newUrl, data);
+            const response = await axios.post(newUrl, { ...data, role: 'user' });
 
             if (response.data.success) {
                 const { token, role } = response.data;
+                if (role !== 'user' || !token) {
+                    toast.error('Please sign in with a customer account.');
+                    return;
+                }
                 setToken(token);
                 setRole(role);
                 localStorage.setItem('token', token);
@@ -42,17 +45,6 @@ const LoginPopup = ({ setShowLogin }) => {
                 setShowLogin(false);
                 toast.success(currState === 'Login' ? 'Login Successful!' : 'Registration Successful!');
 
-                if (role === 'admin') {
-                    window.location.href = `${urlAdmin}/?token=${token}&role=${role}`;
-                    localStorage.removeItem("token");
-                    localStorage.removeItem("role");
-
-                } 
-                else if (role === 'restaurant') {
-                        window.location.href = `${urlOwner}/?token=${token}&role=${role}`;
-                        localStorage.removeItem("token");
-                        localStorage.removeItem("role");
-                    }
             } else {
                 toast.error(response.data.message);
             }
@@ -62,6 +54,8 @@ const LoginPopup = ({ setShowLogin }) => {
             } else {
                 toast.error('An error occurred. Please try again.');
             }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -99,11 +93,13 @@ const LoginPopup = ({ setShowLogin }) => {
                         onChange={onChangHandler}
                         value={data.password}
                         placeholder="Your Password"
+                        autoComplete={currState === 'Login' ? 'current-password' : 'new-password'}
+                        minLength={currState === 'Sign Up' ? 8 : undefined}
                         required
                     />
                 </div>
 
-                <button type="submit">{currState === 'Sign Up' ? 'Create Account' : 'Login'}</button>
+                <button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Please wait...' : currState === 'Sign Up' ? 'Create Account' : 'Login'}</button>
 
                 {currState === 'Sign Up' && (
                     <div className="login-popup-condition">

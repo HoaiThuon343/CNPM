@@ -1,131 +1,343 @@
-import userModel from "../models/userModel.js";
-import foodModel from "../models/foodModel.js";
 
+import mongoose from "mongoose";
+
+import userModel from "../models/userModel.js";
+import customerModel from "../models/customerModel.js";
+import productModel from "../models/productModel.js";
+import cartModel from "../models/cartModel.js";
+import cartDetailModel from "../models/cartDetailModel.js";
+
+// Get or create Customer and Cart for the authenticated user
+const getCustomerCart = async (userId) => {
+    const user = await userModel.findById(userId);
+
+    if (!user) {
+        const error = new Error("User not found");
+        error.status = 404;
+        throw error;
+    }
+
+    const customer = await customerModel.findOneAndUpdate(
+        { userId: user._id },
+        {
+            $setOnInsert: {
+                userId: user._id
+            }
+        },
+        {
+            new: true,
+            upsert: true,
+            setDefaultsOnInsert: true
+        }
+    );
+
+    const cart = await cartModel.findOneAndUpdate(
+        { customerId: customer._id },
+        {
+            $setOnInsert: {
+                customerId: customer._id
+            }
+        },
+        {
+            new: true,
+            upsert: true,
+            setDefaultsOnInsert: true
+        }
+    );
+
+    await migrateLegacyCartData(user, cart._id);
+
+    return cart;
+};
+
+
+// Migrate old User.cartData into CartDetail
+const migrateLegacyCartData = async (user, cartId) => {
+    const legacyCart = user.cartData;
+
+    if (
+        !legacyCart ||
+        typeof legacyCart !== "object" ||
+        Object.keys(legacyCart).length === 0
+    ) {
+        return;
+    }
+
+    const quantities = {};
+
+    const addLegacyItem = (productId, value) => {
+        const quantity = Number(value);
+
+        if (
+            mongoose.Types.ObjectId.isValid(productId) &&
+            Number.isInteger(quantity) &&
+            quantity > 0
+        ) {
+            quantities[productId] =
+                (quantities[productId] || 0) + quantity;
+        }
+    };
+
+    for (const [key, value] of Object.entries(legacyCart)) {
+        // Support an old flat cart structure
+        if (typeof value === "number" || typeof value === "string") {
+            addLegacyItem(key, value);
+        }
+
+        // Support the old restaurantId -> productId -> quantity structure
+        else if (
+            value &&
+            typeof value === "object" &&
+            !Array.isArray(value)
+        ) {
+            for (const [productId, quantity] of Object.entries(value)) {
+                addLegacyItem(productId, quantity);
+            }
+        }
+    }
+
+    const productIds = Object.keys(quantities);
+
+    if (productIds.length > 0) {
+        const existingProducts = await productModel.find({
+            _id: { $in: productIds }
+        }).select("_id").lean();
+
+        const validProductIds = new Set(
+            existingProducts.map(product => product._id.toString())
+        );
+
+        const operations = productIds
+            .filter(productId => validProductIds.has(productId))
+            .map(productId => ({
+                updateOne: {
+                    filter: {
+                        cartId,
+                        productId
+                    },
+                    update: {
+                        $set: {
+                            quantity: quantities[productId]
+                        }
+                    },
+                    upsert: true
+                }
+            }));
+
+        if (operations.length > 0) {
+            await cartDetailModel.bulkWrite(operations);
+        }
+    }
+
+    // Clear legacy data only after migration succeeds
+    user.cartData = {};
+    user.markModified("cartData");
+    await user.save();
+};
+
+
+//  Chuyển đổi danh sách các tài liệu cartDetail thành một đối tượng với productId làm key và quantity làm value
+const getCartItems = async (cartId) => {
+    const details = await cartDetailModel.find({ cartId })
+        .select("productId quantity")
+        .lean();
+
+    const cartItems = {};
+
+    details.forEach(detail => {
+        cartItems[detail.productId.toString()] = detail.quantity;
+    });
+
+    return cartItems;
+};
+
+
+// Thêm sản phẩm vào giỏ hàng
 const addToCart = async (req, res) => {
     try {
-        const userId = req.user.id;
-        const { itemId, quantity } = req.body;
-        const addQuantity = quantity ? Number(quantity) : 1;
+        const { itemId, quantity = 1 } = req.body;
+        const addQuantity = Number(quantity);
 
-        const foodItem = await foodModel.findById(itemId);
-        if (!foodItem) return res.json({ success: false, message: "Not found" });
-        
-        const itemRestaurantId = foodItem.restaurantId.toString();
-
-        let userData = await userModel.findById(userId);
-        
-        if (!userData.cartData) userData.cartData = {}; 
-        
-        if (!userData.cartData[itemRestaurantId]) {
-            userData.cartData[itemRestaurantId] = {};
-        }
-        if (!userData.cartData[itemRestaurantId][itemId]) {
-            userData.cartData[itemRestaurantId][itemId] = addQuantity;
-        } else {
-            userData.cartData[itemRestaurantId][itemId] += addQuantity;
+        if (!mongoose.Types.ObjectId.isValid(itemId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid product ID"
+            });
         }
 
-        userData.markModified('cartData'); 
+        if (!Number.isInteger(addQuantity) || addQuantity < 1) {
+            return res.status(400).json({
+                success: false,
+                message: "Quantity must be a positive integer"
+            });
+        }
 
-        await userData.save();
+        const product = await productModel.findById(itemId);
 
-        res.json({ success: true, message: "Added to Cart" });
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found"
+            });
+        }
+
+        if (product.status !== "active") {
+            return res.status(400).json({
+                success: false,
+                message: "Product is currently unavailable"
+            });
+        }
+
+        const cart = await getCustomerCart(req.user.id);
+
+        await cartDetailModel.findOneAndUpdate(
+            {
+                cartId: cart._id,
+                productId: itemId
+            },
+            {
+                $inc: {
+                    quantity: addQuantity
+                }
+            },
+            {
+                new: true,
+                upsert: true,
+                runValidators: true,
+                setDefaultsOnInsert: true
+            }
+        );
+
+        const cartItems = await getCartItems(cart._id);
+
+        return res.json({
+            success: true,
+            message: "Product added to cart",
+            cartItems
+        });
 
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: "Error" });
-    }
-}
+        console.error("Add to cart error:", error);
 
+        return res.status(error.status || 500).json({
+            success: false,
+            message: error.status ? error.message : "Unable to add product to cart"
+        });
+    }
+};
+
+
+// giảm số lượng sản phẩm đi 1 đơn vị
 const removeFromCart = async (req, res) => {
     try {
-        const userId = req.user.id;
-        const { itemId } = req.body; // Lấy itemId từ request
-
-        // 1. Tìm món ăn để lấy ID nhà hàng
-        const foodItem = await foodModel.findById(itemId);
-        if (!foodItem) {
-            return res.json({ success: false, message: "Food item not found" });
-        }
-        const itemRestaurantId = foodItem.restaurantId.toString();
-
-        // 2. Lấy dữ liệu user
-        let userData = await userModel.findById(userId);
-        let cartData = userData.cartData;
-
-        // 3. Kiểm tra xem có giỏ hàng của nhà hàng này không
-        if (cartData && cartData[itemRestaurantId]) {
-            
-            // 4. Kiểm tra món ăn có trong giỏ không
-            if (cartData[itemRestaurantId][itemId] > 1) {
-                
-                // Giảm số lượng
-                cartData[itemRestaurantId][itemId] -= 1;
-            }
-        }
-
-        userData.markModified('cartData');
-        await userData.save();
-
-        res.json({ success: true, message: "Removed from Cart" });
-
-    } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: "Error" });
-    }
-}
-
-const getCart = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        let userData = await userModel.findById(userId);
-
-        if (!userData) {
-            return res.json({ success: false, message: "User not found" });
-        }
-        
-        let cartData = userData.cartData || {};
-        res.json({ success: true, cartData })
-    } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: "Error" })
-    }
-}
-
-const deleteItem = async (req, res) => {
-    try {
-        const userId = req.user.id;
         const { itemId } = req.body;
 
-        const foodItem = await foodModel.findById(itemId);
-        if (!foodItem) return res.json({ success: false, message: "Not found" });
-        const itemRestaurantId = foodItem.restaurantId.toString();
+        if (!mongoose.Types.ObjectId.isValid(itemId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid product ID"
+            });
+        }
 
-        let userData = await userModel.findById(userId);
+        const cart = await getCustomerCart(req.user.id);
 
-        // Kiểm tra và xóa hẳn món ăn
-        if (userData.cartData && userData.cartData[itemRestaurantId]) {
-            if (userData.cartData[itemRestaurantId][itemId]) {
-                
-                // LỆNH QUAN TRỌNG: Xóa key món ăn khỏi object
-                delete userData.cartData[itemRestaurantId][itemId]; 
+        const detail = await cartDetailModel.findOne({
+            cartId: cart._id,
+            productId: itemId
+        });
 
-                // Nếu nhà hàng không còn món nào, xóa luôn nhà hàng
-                if (Object.keys(userData.cartData[itemRestaurantId]).length === 0) {
-                    delete userData.cartData[itemRestaurantId];
-                }
-
-                userData.markModified('cartData');
-                await userData.save();
+        if (detail) {
+            if (detail.quantity > 1) {
+                detail.quantity -= 1;
+                await detail.save();
+            } else {
+                await cartDetailModel.deleteOne({
+                    _id: detail._id
+                });
             }
         }
 
-        res.json({ success: true, message: "Item Deleted" });
+        const cartItems = await getCartItems(cart._id);
+
+        return res.json({
+            success: true,
+            message: "Cart quantity updated",
+            cartItems
+        });
 
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: "Error" });
-    }
-}
+        console.error("Remove from cart error:", error);
 
-export { addToCart, removeFromCart, getCart, deleteItem }
+        return res.status(error.status || 500).json({
+            success: false,
+            message: error.status ? error.message : "Unable to update cart"
+        });
+    }
+};
+
+
+// Lấy dữ liệu giỏ hàng hiện tại
+const getCart = async (req, res) => {
+    try {
+        const cart = await getCustomerCart(req.user.id);
+        const cartItems = await getCartItems(cart._id);
+
+        return res.json({
+            success: true,
+            cartItems
+        });
+
+    } catch (error) {
+        console.error("Get cart error:", error);
+
+        return res.status(error.status || 500).json({
+            success: false,
+            message: error.status ? error.message : "Unable to load cart"
+        });
+    }
+};
+
+
+// Xóa hoàn toàn sản phẩm khỏi giỏ hàng
+const deleteItem = async (req, res) => {
+    try {
+        const { itemId } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(itemId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid product ID"
+            });
+        }
+
+        const cart = await getCustomerCart(req.user.id);
+
+        await cartDetailModel.deleteOne({
+            cartId: cart._id,
+            productId: itemId
+        });
+
+        const cartItems = await getCartItems(cart._id);
+
+        return res.json({
+            success: true,
+            message: "Product removed from cart",
+            cartItems
+        });
+
+    } catch (error) {
+        console.error("Delete cart item error:", error);
+
+        return res.status(error.status || 500).json({
+            success: false,
+            message: error.status ? error.message : "Unable to remove product from cart"
+        });
+    }
+};
+
+export {
+    addToCart,
+    removeFromCart,
+    getCart,
+    deleteItem
+};

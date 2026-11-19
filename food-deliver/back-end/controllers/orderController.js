@@ -1,209 +1,414 @@
+import mongoose from "mongoose";
 import orderModel from "../models/orderModel.js";
-import userModel from "../models/userModel.js";
-import foodModel from "../models/foodModel.js";
-import droneModel from "../models/droneModel.js";
-import restaurantProfileModel from "../models/restaurantProfile.js";
-import Stripe from "stripe";
+import customerModel from "../models/customerModel.js";
+import cartModel from "../models/cartModel.js";
+import cartDetailModel from "../models/cartDetailModel.js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder")
+const DELIVERY_CHARGE = 5;
 
-const placeOrder = async (req,res) => {
-    const frontend_url = "http://localhost:5173";
-    const userId = req.user.id;
-    const { address: frontendAddress, restaurantId } = req.body;
+const roundMoney = value => Math.round((value + Number.EPSILON) * 100) / 100;
+
+const createHttpError = (message, status = 400) => {
+    const error = new Error(message);
+    error.status = status;
+    return error;
+};
+
+// Create an order using the authenticated customer's current cart (COD).
+const placeOrder = async (req, res) => {
+    const { address } = req.body;
+
+    if (
+        !address ||
+        !address.name?.trim() ||
+        !address.email?.trim() ||
+        !address.phone?.trim() ||
+        !address.address?.trim()
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: "Please provide complete delivery information."
+        });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.user.id)) {
+        return res.status(401).json({
+            success: false,
+            message: "Invalid user account. Please log in again."
+        });
+    }
+
+    const session = await mongoose.startSession();
+    let createdOrder = null;
 
     try {
-        if (!restaurantId){
-            return res.json({success:false,message:"Restaurant ID is required."})
-        }
+        await session.withTransaction(async () => {
+            const customer = await customerModel.findOne({
+                userId: req.user.id
+            }).session(session);
 
-        const userData = await userModel.findById(userId);
-        const cartData = userData.cartData;
-        const currentRestaurantCart = cartData[restaurantId];
+            if (!customer) {
+                throw createHttpError(
+                    "Customer profile not found. Please refresh your account and try again.",
+                    404
+                );
+            }
 
-        if (!currentRestaurantCart || Object.keys(currentRestaurantCart).length === 0){
-            return res.json({success:false,message:"No items in cart for this restaurant."})
-        }
+            const cart = await cartModel.findOne({
+                customerId: customer._id
+            }).session(session);
 
-        let totalAmount = 0;
-        let lineItemsStripe = [];
-        let orderItems = [];
+            if (!cart) {
+                throw createHttpError("Your cart is empty.", 400);
+            }
 
-        await Promise.all(Object.keys(currentRestaurantCart).map(async (itemId) => {
-            const foodItem = await foodModel.findById(itemId);
-            const quantity = currentRestaurantCart[itemId];
+            const cartDetails = await cartDetailModel.find({
+                cartId: cart._id
+            })
+                .populate("productId", "name price image status")
+                .session(session);
 
-            if (foodItem) {
-                const itemTotal = foodItem.price * quantity;
-                totalAmount += itemTotal;
-                
+            if (cartDetails.length === 0) {
+                throw createHttpError("Your cart is empty.", 400);
+            }
+
+            const orderItems = [];
+            let subtotal = 0;
+
+            for (const detail of cartDetails) {
+                const product = detail.productId;
+                const quantity = Number(detail.quantity);
+
+                if (!product) {
+                    throw createHttpError(
+                        "A product in your cart no longer exists. Please update your cart.",
+                        409
+                    );
+                }
+
+                if (product.status !== "active") {
+                    throw createHttpError(
+                        `${product.name} is currently unavailable. Please update your cart.`,
+                        409
+                    );
+                }
+
+                if (!Number.isInteger(quantity) || quantity < 1) {
+                    throw createHttpError("Invalid product quantity in cart.", 400);
+                }
+
+                const price = Number(product.price);
+                const itemTotal = price * quantity;
+                subtotal += itemTotal;
+
                 orderItems.push({
-                    name: foodItem.name,
-                    price: foodItem.price,
-                    quantity: quantity,
-                    image: foodItem.image,
-                    foodId: itemId
-                });
-
-                lineItemsStripe.push({
-                    price_data:{
-                        currency:"usd", 
-                        product_data:{ name: foodItem.name },
-                        unit_amount: foodItem.price 
-                    },
-                    quantity: quantity
+                    productId: product._id,
+                    name: product.name,
+                    price,
+                    quantity,
+                    image: product.image
                 });
             }
-        }));
 
-        const deliveryFee = 2;
-        totalAmount += deliveryFee;
-        lineItemsStripe.push({
-            price_data:{
-                currency:"usd",
-                product_data:{ name:"Delivery Charges" },
-                unit_amount: deliveryFee * 100
-            },
-            quantity:1
+            subtotal = roundMoney(subtotal);
+            const deliveryFee = DELIVERY_CHARGE;
+            const amount = roundMoney(subtotal + deliveryFee);
+
+            const newOrder = new orderModel({
+                customerId: customer._id,
+                items: orderItems,
+                subtotal,
+                deliveryFee,
+                amount,
+                address: {
+                    name: address.name.trim(),
+                    email: address.email.trim().toLowerCase(),
+                    address: address.address.trim(),
+                    phone: address.phone.trim()
+                },
+                status: "PENDING",
+                paymentMethod: "COD",
+                paymentStatus: "UNPAID"
+            });
+
+            await newOrder.save({ session });
+
+            // Clear the cart only after the order has been saved successfully.
+            await cartDetailModel.deleteMany(
+                { cartId: cart._id },
+                { session }
+            );
+
+            createdOrder = newOrder;
         });
-        
-        const newOrder = new orderModel({
-            userId: userId,           
-            restaurantId: restaurantId,
-            items: orderItems,
-            amount: totalAmount,
-            address: frontendAddress
+
+        return res.status(201).json({
+            success: true,
+            message: "Order placed successfully. Payment method: Cash on Delivery.",
+            orderId: createdOrder._id,
+            amount: createdOrder.amount,
+            status: createdOrder.status,
+            paymentMethod: createdOrder.paymentMethod,
+            paymentStatus: createdOrder.paymentStatus
         });
-        
-        await newOrder.save();
-
-        const session = await stripe.checkout.sessions.create({
-            line_items: lineItemsStripe,
-            mode:'payment',
-            success_url:`${frontend_url}/verify?success=true&orderId=${newOrder._id}`,
-            cancel_url:`${frontend_url}/verify?success=false&orderId=${newOrder._id}`,
-        })
-
-        res.json({success:true, session_url:session.url})
 
     } catch (error) {
-        console.log(error);
-        res.json({success:false,message:"Error placing order."})
+        console.error("Place order error:", error);
+
+        return res.status(error.status || 500).json({
+            success: false,
+            message: error.status
+                ? error.message
+                : "Unable to place order. Please try again."
+        });
+    } finally {
+        await session.endSession();
     }
-}
+};
 
-// Hàm verifyOrder
-const verifyOrder = async (req, res) => {
-    const { orderId, success } = req.body;
-    try {
-        if (success === "true") {
-            await orderModel.findByIdAndUpdate(orderId, { payment: true });
-            
-            // Lấy thông tin đơn hàng để biết nhà hàng nào và user nào
-            const order = await orderModel.findById(orderId);
-            if (order) {
-                const userData = await userModel.findById(order.userId);
-                
-                // Chỉ xóa đúng cái "rổ" của nhà hàng đã thanh toán
-                if (userData.cartData && userData.cartData[order.restaurantId]) {
-                    delete userData.cartData[order.restaurantId];
-                    
-                    // Báo Mongoose lưu thay đổi Object
-                    userData.markModified('cartData');
-                    await userData.save();
-                }
-            }
-            res.json({ success: true, message: "Paid" })
-        }
-        else {
-            await orderModel.findByIdAndDelete(orderId)
-            res.json({ success: false, message: "Not Paid" })
-        }
-    } 
-    catch (error) {
-            console.log(error);
-            res.json({ success: false, message: "Not Verified" })
-        }
-}
-
-// Hàm userOrders
+// Get orders belonging to the authenticated customer.
 const userOrders = async (req, res) => {
     try {
-        const orders = await orderModel.find({userId: req.user.id });
-        res.json({ success: true, data: orders })
-    } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: "Error fetching user orders"})
-    }
-}
+        const customer = await customerModel.findOne({
+            userId: req.user.id
+        });
 
-// Hàm listOrders lấy danh sách đơn hàng (dùng cho Admin/Restaurant) và có thêm thông tin Drone
-const listOrders = async (req, res) => {
-    try {
-        const orders = await orderModel.find({});
-
-        const ordersWithData = await Promise.all(orders.map(async (order) => {
-            
-            let assignedDroneInfo = null;
-
-                // Chỉ tìm Drone nếu đơn hàng đang ở trạng thái "Giao đi"
-            if (['Drone Moving', 'Out for delivery', 'Returning'].includes(order.status)) {
-                // Tìm con Drone nào đang giữ currentOrderId trùng với order._id
-                const drone = await droneModel.findOne({ currentOrderId: order._id });
-                
-                if (drone) {
-                    assignedDroneInfo = {
-                        serialNumber: drone.serialNumber,
-                        battery: drone.battery
-                    };
-                }
-            }
-
-            return {
-                ...order._doc, 
-                assignedDrone: assignedDroneInfo // Gửi kèm thông tin Drone về Frontend
-            };
-        }));
-
-        res.json({ success: true, data: ordersWithData });
-
-    } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: "Error listing orders" });
-    }
-}
-
-// Hàm updateStatus
-const updateStatus = async (req, res) => {
-    try {
-        await orderModel.findByIdAndUpdate(req.body.orderId, { status: req.body.status });
-        res.json({ success: true, message: "Status Updated" })
-    } catch (error) {
-        res.json({ success: false, message: "Error updating status" })
-    }
-}
-
-// Hàm listRestaurantOrders lấy danh sách đơn hàng cho nhà hàng dựa trên restaurantId
-const listRestaurantOrders = async (req, res) => {
-    try {
-        const userId = req.user.id;
-
-        // 1. Tìm Profile nhà hàng dựa trên User ID
-        const profile = await restaurantProfileModel.findOne({ restaurant: userId });
-        
-        if (!profile) {
-            return res.json({ success: false, message: "Không tìm thấy hồ sơ nhà hàng" });
+        if (!customer) {
+            return res.json({ success: true, data: [] });
         }
 
-        // 2. Tìm các đơn hàng có restaurantId trùng với ID của Profile này
-        const orders = await orderModel.find({ restaurantId: profile._id });
+        const orders = await orderModel.find({
+            customerId: customer._id
+        })
+            .sort({ date: -1 })
+            .lean();
 
-        res.json({ success: true, data: orders });
+        return res.json({ success: true, data: orders });
 
     } catch (error) {
-        console.log(error);
-        res.json({ success: false, message: "Lỗi khi lấy danh sách đơn hàng" });
+        console.error("Fetch user orders error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Error fetching user orders."
+        });
     }
-}
+};
 
-export {placeOrder,verifyOrder,userOrders,listOrders,updateStatus, listRestaurantOrders};
+// List all orders for an authorized administrator.
+const listOrders = async (req, res) => {
+    try {
+        const orders = await orderModel.find({})
+            .populate({
+                path: "customerId",
+                select: "phone userId",
+                populate: {
+                    path: "userId",
+                    select: "name email"
+                }
+            })
+            .sort({ date: -1 })
+            .lean();
+
+        return res.json({ success: true, data: orders });
+
+    } catch (error) {
+        console.error("List orders error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Error listing orders."
+        });
+    }
+};
+
+// Enforce the order status progression.
+const updateStatus = async (req, res) => {
+    const { orderId, status } = req.body;
+
+    const allowedTransitions = {
+        PENDING: ["CONFIRMED", "CANCELLED"],
+        CONFIRMED: ["PREPARING"],
+        PREPARING: ["DELIVERING"],
+        DELIVERING: ["COMPLETED"],
+        COMPLETED: [],
+        CANCELLED: []
+    };
+
+    try {
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid order ID."
+            });
+        }
+
+        const order = await orderModel.findById(orderId);
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Order not found."
+            });
+        }
+
+        if (status === "CONFIRMED") {
+            return res.status(409).json({
+                success: false,
+                message: "Order confirmation is not enabled until Invoice and InvoiceDetail creation is implemented."
+            });
+        }
+
+        if (!allowedTransitions[order.status]?.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid order status transition: ${order.status} to ${status}.`
+            });
+        }
+
+        order.status = status;
+
+        if (status === "CONFIRMED") {
+            order.confirmedAt = new Date();
+        }
+
+        if (status === "CANCELLED") {
+            order.cancelledAt = new Date();
+        }
+
+        await order.save();
+
+        return res.json({
+            success: true,
+            message: "Order status updated successfully.",
+            data: order
+        });
+
+    } catch (error) {
+        console.error("Update order status error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Error updating order status."
+        });
+    }
+};
+
+// Customers can cancel only their own pending orders.
+const cancelOrder = async (req, res) => {
+    const { orderId } = req.body;
+
+    try {
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid order ID."
+            });
+        }
+
+        const customer = await customerModel.findOne({
+            userId: req.user.id
+        });
+
+        if (!customer) {
+            return res.status(404).json({
+                success: false,
+                message: "Customer profile not found."
+            });
+        }
+
+        const order = await orderModel.findOne({
+            _id: orderId,
+            customerId: customer._id
+        });
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Order not found."
+            });
+        }
+
+        if (order.status !== "PENDING") {
+            return res.status(400).json({
+                success: false,
+                message: "Only pending orders can be cancelled."
+            });
+        }
+
+        order.status = "CANCELLED";
+        order.cancelledAt = new Date();
+        await order.save();
+
+        return res.json({
+            success: true,
+            message: "Order cancelled successfully."
+        });
+
+    } catch (error) {
+        console.error("Cancel order error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Unable to cancel order."
+        });
+    }
+};
+
+// Mark COD payment as received after order completion.
+const updatePaymentStatus = async (req, res) => {
+    const { orderId } = req.body;
+
+    try {
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid order ID."
+            });
+        }
+
+        const order = await orderModel.findById(orderId);
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Order not found."
+            });
+        }
+
+        if (order.paymentMethod !== "COD" || order.status !== "COMPLETED") {
+            return res.status(400).json({
+                success: false,
+                message: "COD payment can be marked as paid only after order completion."
+            });
+        }
+
+        if (order.paymentStatus === "PAID") {
+            return res.json({
+                success: true,
+                message: "Order has already been paid."
+            });
+        }
+
+        order.paymentStatus = "PAID";
+        order.paidAt = new Date();
+        await order.save();
+
+        return res.json({
+            success: true,
+            message: "Payment status updated successfully."
+        });
+
+    } catch (error) {
+        console.error("Update payment status error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Unable to update payment status."
+        });
+    }
+};
+
+export {
+    placeOrder,
+    userOrders,
+    listOrders,
+    updateStatus,
+    cancelOrder,
+    updatePaymentStatus
+};

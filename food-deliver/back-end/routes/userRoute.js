@@ -1,5 +1,5 @@
 import express from 'express';
-import { loginUser, registerUser, removeUser, listUsers, updateUserStatus, registerRestaurant} from '../controllers/userController.js';
+import { loginUser, registerUser, getCurrentUser, removeUser, listUsers, updateUserStatus, registerRestaurant} from '../controllers/userController.js';
 import checkAuth from '../middleware/checkAuth.js';
 import checkRole from '../middleware/checkRole.js';
 import multer from 'multer';
@@ -19,6 +19,7 @@ const userRouter = express.Router();
 
 userRouter.post('/login', loginUser);
 userRouter.post('/register', registerUser); 
+userRouter.get('/me', checkAuth, getCurrentUser);
 
 // Middleware chỉ cho phép admin truy cập
 userRouter.post('/remove', checkAuth, checkRole(['admin']), removeUser); 
