@@ -1,8 +1,9 @@
+import { formatMoney } from '../../../../shared/money.js'
 import React, { useState, useEffect } from 'react';
 import './Delivery.css';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { assets, currency } from '../../assets/assets';
+import { assets } from '../../assets/assets';
 
 const Delivery = ({ url }) => {
   const [orders, setOrders] = useState([]);
@@ -164,7 +165,7 @@ const Delivery = ({ url }) => {
                                     <h4>Order ID: #{order._id.slice(-6)}</h4>
                                     <p><strong>Items:</strong> {order.items.map(i => `${i.name} x${i.quantity}`).join(', ')}</p>
                                     <p><strong>To:</strong> {order.address.address}</p>
-                                    <p className="price-tag">{order.amount} {currency}</p>
+                                    <p className="price-tag">{formatMoney(order.amount)}</p>
                                 </div>
                                 
                                 {/* --- CỘT ACTIONS (Logic hành động) --- */}

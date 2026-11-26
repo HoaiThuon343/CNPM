@@ -1,0 +1,36 @@
+.offers-page {
+    margin: 36px 0 60px;
+}
+.offers-page header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.offers-page header a {
+    color: #b73b24;
+    font-weight: 600;
+}
+.offers-sign-in {
+    margin-bottom: 16px;
+}
+.offers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: 16px;
+}
+.offers-grid article {
+    display: grid;
+    gap: 10px;
+    padding: 20px;
+    background: #fff8f2;
+    border: 1px solid #f0dacf;
+    border-radius: 10px;
+    overflow-wrap: anywhere;
+}
+.offers-grid code {
+    font-size: 1em;
+    font-weight: 700;
+}

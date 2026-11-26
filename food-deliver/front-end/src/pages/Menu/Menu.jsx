@@ -1,10 +1,13 @@
-import React, { useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
+import { StoreContext } from '../../context/storeContext'
 import './Menu.css'
 import ExploreMenu from '../../component/ExploreMenu/ExploreMenu'
 import ProductDisplay from '../../component/ProductDisplay/ProductDisplay'
 import ProductDetail from '../../component/ProductDetail/ProductDetail'
 
 const Menu = ({ setShowLogin }) => {
+  const { fetchProductList } = useContext(StoreContext)
+  useEffect(() => { fetchProductList() }, [fetchProductList])
 
   const [category, setCategory] = useState('All')
   const [keyword, setKeyword] = useState('')
@@ -47,6 +50,7 @@ const Menu = ({ setShowLogin }) => {
       />
 
       <ProductDetail
+        key={selectedProduct?._id || 'none'}
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
       />

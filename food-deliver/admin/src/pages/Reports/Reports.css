@@ -1,0 +1,72 @@
+.reports-page .report-filters {
+    align-items: end;
+    margin-bottom: 20px;
+    padding: 16px;
+}
+
+.report-filters select {
+    max-width: 240px;
+}
+
+.reports-page .report-filters input {
+    flex: initial;
+    width: auto;
+    min-width: 130px;
+}
+
+.reports-page .report-stats {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    margin-bottom: 20px;
+}
+
+.report-stats strong {
+    font-size: 26px;
+    overflow-wrap: anywhere;
+}
+
+.reports-page > .panel + .panel {
+    margin-top: 20px;
+}
+
+.report-chart {
+    display: flex;
+    gap: 12px;
+    height: 240px;
+    overflow-x: auto;
+    padding: 18px;
+}
+
+.report-chart-column {
+    display: flex;
+    flex: 1 0 75px;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.report-chart-track {
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    background: repeating-linear-gradient(to top, #eceef2 0 1px, transparent 1px 25%);
+}
+
+.report-chart-bar {
+    width: min(55px, 80%);
+    border-radius: 4px 4px 0 0;
+    background: #6554c0;
+}
+
+.report-note {
+    margin-top: 14px;
+    font-size: 14px;
+}
+
+@media (max-width: 760px) {
+    .reports-page .page-heading {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

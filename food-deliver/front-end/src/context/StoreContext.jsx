@@ -1,16 +1,25 @@
 
 import { useEffect, useState, useCallback } from "react";
-import { menu_list } from "../assets/assets";
+import { menu_list as defaultMenus } from "../assets/assets";
 import axios from "axios";
 import { StoreContext } from "./storeContext.js";
 import { toast } from "react-toastify";
+import { toCents } from '../../../shared/money.js';
 
 const StoreContextProvider = (props) => {
     const url = "http://localhost:4000";
 
     const [product_list, setProductList] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [loadingProductList, setLoadingProductList] = useState(true);
-    const [cartItems, setCartItems] = useState({});
+    const [memberCart, setCartItems] = useState({});
+    const [guestCart, setGuestCart] = useState(() => {
+        try {
+            const stored = JSON.parse(localStorage.getItem('guestCart') || '{}');
+            return Object.fromEntries(Object.entries(stored || {}).filter(([id, quantity]) =>
+                /^[a-f0-9]{24}$/i.test(id) && Number.isSafeInteger(quantity) && quantity > 0));
+        } catch { return {}; }
+    });
     const [loadingCart, setLoadingCart] = useState(
         () => Boolean(localStorage.getItem("token"))
     );
@@ -21,6 +30,28 @@ const StoreContextProvider = (props) => {
     const [showLogin, setShowLogin] = useState(false);
     const [role, setRole] = useState(null);
     const [category, setCategory] = useState("All");
+
+    const cartItems = token ? memberCart : guestCart;
+    const menu_list = categories.map(category => ({
+        menu_name: category.name,
+        menu_image: defaultMenus.find(item => item.menu_name.toLocaleLowerCase('vi') === category.key)?.menu_image || defaultMenus[0].menu_image,
+    }));
+    useEffect(() => {
+        try { localStorage.setItem('guestCart', JSON.stringify(guestCart)); }
+        catch { toast.error('Could not save your cart on this device.'); }
+    }, [guestCart]);
+
+    const clearGuestCart = (items) => {
+        setGuestCart(previous => {
+            if (!items) return {};
+            const next = { ...previous };
+            for (const item of items) {
+                next[item.productId] = Math.max(0, (next[item.productId] || 0) - item.quantity);
+                if (!next[item.productId]) delete next[item.productId];
+            }
+            return next;
+        });
+    };
 
     const currency = "$";
     const deliveryCharge = 5;
@@ -52,10 +83,6 @@ const StoreContextProvider = (props) => {
 
         const addQuantity = Number(quantity);
 
-        if (!token) {
-            throw new Error("Please log in to add products to your cart.");
-        }
-
         if (!itemInfo) {
             throw new Error("Product not found.");
         }
@@ -66,6 +93,11 @@ const StoreContextProvider = (props) => {
 
         if (!Number.isInteger(addQuantity) || addQuantity < 1) {
             throw new Error("Invalid product quantity.");
+        }
+
+        if (!token) {
+            setGuestCart(previous => ({ ...previous, [itemId]: (previous[itemId] || 0) + addQuantity }));
+            return;
         }
 
         const response = await axios.post(
@@ -90,7 +122,13 @@ const StoreContextProvider = (props) => {
     // Decrease product quantity by one
     const removeFromCart = async (itemId) => {
         if (!token) {
-            throw new Error("Please log in to update your cart.");
+            setGuestCart(previous => {
+                const next = { ...previous };
+                next[itemId] = Math.max(0, (next[itemId] || 0) - 1);
+                if (!next[itemId]) delete next[itemId];
+                return next;
+            });
+            return;
         }
 
         const response = await axios.post(
@@ -115,7 +153,12 @@ const StoreContextProvider = (props) => {
     // Remove product completely from cart
     const deleteItemFromCart = async (itemId) => {
         if (!token) {
-            throw new Error("Please log in to update your cart.");
+            setGuestCart(previous => {
+                const next = { ...previous };
+                delete next[itemId];
+                return next;
+            });
+            return;
         }
 
         const response = await axios.post(
@@ -137,6 +180,18 @@ const StoreContextProvider = (props) => {
         setCartItems(response.data.cartItems || {});
     };
 
+    const clearCart = async () => {
+        if (!token) {
+            clearGuestCart();
+            return;
+        }
+        const { data } = await axios.post(`${url}/api/cart/clear`, {}, {
+            headers: { Authorization: `Bearer ${token}` }, timeout: 10000
+        });
+        if (!data.success) throw new Error(data.message || 'Could not clear your cart.');
+        setCartItems(data.cartItems || {});
+    };
+
     // Calculate total cart amount
     const getTotalCartAmount = () => {
         return Object.entries(cartItems).reduce(
@@ -147,24 +202,25 @@ const StoreContextProvider = (props) => {
 
                 if (itemInfo && Number(quantity) > 0) {
                     return total +
-                        Number(itemInfo.price) * Number(quantity);
+                        toCents(itemInfo.price) * Number(quantity);
                 }
 
                 return total;
             },
             0
-        );
+        ) / 100;
     };
 
     // Fetch product list
     const fetchProductList = useCallback(async () => {
         try {
-            const response = await axios.get(
-                `${url}/api/product/all`
-            );
+            const [response, groups] = await Promise.all([
+                axios.get(`${url}/api/product/all`), axios.get(`${url}/api/product/categories`),
+            ]);
 
             if (response.data.success) {
                 setProductList(response.data.data || []);
+                setCategories(groups.data.data || []);
             } else {
                 throw new Error(
                     response.data.message || "Failed to load products."
@@ -273,8 +329,10 @@ const StoreContextProvider = (props) => {
         addToCart,
         removeFromCart,
         deleteItemFromCart,
+        clearCart,
         getTotalCartAmount,
         loadCartData,
+        clearGuestCart,
 
         // Authentication
         token,

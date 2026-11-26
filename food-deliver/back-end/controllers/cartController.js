@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import userModel from "../models/userModel.js";
 import customerModel from "../models/customerModel.js";
 import productModel from "../models/productModel.js";
+import { checkMenuProducts } from "../models/categoryModel.js";
 import cartModel from "../models/cartModel.js";
 import cartDetailModel from "../models/cartDetailModel.js";
 
@@ -187,6 +188,7 @@ const addToCart = async (req, res) => {
                 message: "Product is currently unavailable"
             });
         }
+        await checkMenuProducts([product]);
 
         const cart = await getCustomerCart(req.user.id);
 
@@ -335,9 +337,25 @@ const deleteItem = async (req, res) => {
     }
 };
 
+const clearCart = async (req, res) => {
+    try {
+        const cart = await getCustomerCart(req.user.id);
+        await cartDetailModel.deleteMany({ cartId: cart._id });
+        const cartItems = await getCartItems(cart._id);
+        return res.json({ success: true, cartItems });
+    } catch (error) {
+        console.error("Clear cart error:", error);
+        return res.status(error.status || 500).json({
+            success: false,
+            message: error.status ? error.message : "Unable to clear cart"
+        });
+    }
+};
+
 export {
     addToCart,
     removeFromCart,
     getCart,
-    deleteItem
+    deleteItem,
+    clearCart
 };

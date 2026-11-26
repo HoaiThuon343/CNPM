@@ -1,5 +1,6 @@
+import { formatMoney as formatPrice, toCents } from '../../../../shared/money.js'
 
-import { useContext } from 'react'
+import { useContext, useState } from 'react'
 import { toast } from 'react-toastify'
 import './YourCart.css'
 import { StoreContext } from '../../context/storeContext.js'
@@ -7,57 +8,43 @@ import { useNavigate } from 'react-router-dom'
 
 const YourCart = () => {
     const {
+        getTotalCartAmount,
         cartItems,
         product_list,
         loadingProductList,
         loadingCart,
         url,
-        currency,
         addToCart,
         removeFromCart,
-        deleteItemFromCart
+        deleteItemFromCart,
+        clearCart
     } = useContext(StoreContext)
 
     const navigate = useNavigate()
+    const [updating, setUpdating] = useState(false)
+    const hasItems = Object.values(cartItems).some(quantity => quantity > 0)
 
     const cartProducts = (product_list || []).filter(
         item => Number(cartItems?.[item._id]) > 0
     )
 
-    const subtotal = cartProducts.reduce(
-        (total, item) =>
-            total + Number(item.price) * Number(cartItems[item._id]),
-        0
-    )
+    const subtotal = getTotalCartAmount()
 
-    const formatPrice = price =>
-        `${currency}${Number(price || 0).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        })}`
-
-    const handleIncrease = async (itemId) => {
+    const handleUpdate = async (action, itemId) => {
+        if (updating) return
+        setUpdating(true)
         try {
-            await addToCart(itemId)
+            await action(itemId)
         } catch (error) {
-            toast.error(error.message || 'Failed to update cart.')
+            toast.error(error.response?.data?.message || error.message || 'Failed to update cart.')
+        } finally {
+            setUpdating(false)
         }
     }
 
-    const handleDecrease = async (itemId) => {
-        try {
-            await removeFromCart(itemId)
-        } catch (error) {
-            toast.error(error.message || 'Failed to update cart.')
-        }
-    }
-
-    const handleRemove = async (itemId) => {
-        try {
-            await deleteItemFromCart(itemId)
-        } catch (error) {
-            toast.error(error.message || 'Failed to remove product.')
-        }
+    const handleClear = () => {
+        if (updating || !window.confirm('Remove all items from your cart?')) return
+        handleUpdate(clearCart)
     }
 
     const handleCheckout = () => {
@@ -73,6 +60,11 @@ const YourCart = () => {
     return (
         <div className="your-cart">
             <div className="cart-container">
+                <div className="cart-heading">
+                    <h2 className="cart-title">Your Cart</h2>
+                    {hasItems && <button type="button" className="cart-clear" disabled={updating}
+                        onClick={handleClear}>Clear cart</button>}
+                </div>
                 {cartProducts.length === 0 ? (
                     <div className="your-cart-empty">
                         <h2>Your cart is empty.</h2>
@@ -80,8 +72,6 @@ const YourCart = () => {
                     </div>
                 ) : (
                     <>
-                        <h2 className="cart-title">Your Cart</h2>
-
                         <p className="cart-subtitle">
                             Review your selected products before checkout.
                         </p>
@@ -90,7 +80,7 @@ const YourCart = () => {
                             <div className="cart-items-list">
                                 {cartProducts.map(item => {
                                     const quantity = Number(cartItems[item._id])
-                                    const itemTotal = Number(item.price) * quantity
+                                    const itemTotal = toCents(item.price) * quantity / 100
                                     const isAvailable = item.status === 'active'
 
                                     return (
@@ -114,7 +104,8 @@ const YourCart = () => {
 
                                             <div className="quantity-control">
                                                 <button
-                                                    onClick={() => handleDecrease(item._id)}
+                                                    onClick={() => handleUpdate(removeFromCart, item._id)}
+                                                    disabled={updating}
                                                     aria-label={`Decrease ${item.name} quantity`}
                                                 >
                                                     -
@@ -123,8 +114,8 @@ const YourCart = () => {
                                                 <span>{quantity}</span>
 
                                                 <button
-                                                    onClick={() => handleIncrease(item._id)}
-                                                    disabled={!isAvailable}
+                                                    onClick={() => handleUpdate(addToCart, item._id)}
+                                                    disabled={updating || !isAvailable}
                                                     aria-label={`Increase ${item.name} quantity`}
                                                 >
                                                     +
@@ -137,7 +128,8 @@ const YourCart = () => {
 
                                             <button
                                                 className="cart-item-remove"
-                                                onClick={() => handleRemove(item._id)}
+                                                onClick={() => handleUpdate(deleteItemFromCart, item._id)}
+                                                disabled={updating}
                                                 aria-label={`Remove ${item.name}`}
                                             >
                                                 Remove
@@ -153,7 +145,7 @@ const YourCart = () => {
                                     <p>{formatPrice(subtotal)}</p>
                                 </div>
 
-                                <button onClick={handleCheckout}>
+                                <button onClick={handleCheckout} disabled={updating}>
                                     PROCEED TO CHECKOUT
                                 </button>
                             </div>

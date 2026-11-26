@@ -1,0 +1,17 @@
+.profile-page { margin: 40px 0 70px; max-width: 900px; }
+.profile-page h1 { margin-bottom: 24px; }
+.profile-panel { border: 1px solid #e2e2e2; padding: 24px; margin-top: 20px; border-radius: 12px; }
+.profile-fields { display: grid; gap: 16px; margin-top: 20px; }
+.profile-fields label { display: grid; gap: 7px; }
+.profile-fields input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; }
+.profile-fields input:focus { outline: 2px solid #ffd700; }
+.profile-page button { border: 1px solid #ddd; background: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; }
+.profile-page button:disabled { opacity: .5; cursor: default; }
+.profile-heading, .profile-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.profile-actions { justify-content: flex-start; }
+.profile-address { padding: 20px 0; border-bottom: 1px solid #eee; }
+.profile-address p { margin: 10px 0; overflow-wrap: anywhere; }
+.profile-default { display: inline-block; background: #fff1bd; margin-left: 12px; padding: 4px 8px; border-radius: 4px; }
+.profile-fields .profile-checkbox { display: flex; align-items: center; }
+.profile-checkbox input { width: auto; }
+.profile-error { color: #b63f2e; }

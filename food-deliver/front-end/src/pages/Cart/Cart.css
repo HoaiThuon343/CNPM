@@ -21,7 +21,8 @@
     width: 100px;
     height: max(5vw, 70px);
     border-radius: 10px;
-    object-fit: cover;
+    object-fit: contain;
+    background: #faf9f6;
 }
 
 .cart-empty {

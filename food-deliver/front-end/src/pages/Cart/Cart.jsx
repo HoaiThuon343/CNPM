@@ -1,3 +1,4 @@
+import { formatMoney as formatPrice, toCents } from '../../../../shared/money.js'
 
 import { useContext } from 'react'
 import './Cart.css'
@@ -6,12 +7,12 @@ import { Navigate, useNavigate } from 'react-router-dom'
 
 const Cart = () => {
     const {
+        getTotalCartAmount,
         cartItems,
         product_list,
         loadingProductList,
         loadingCart,
         url,
-        currency,
         deliveryCharge
     } = useContext(StoreContext)
 
@@ -21,20 +22,10 @@ const Cart = () => {
         item => Number(cartItems?.[item._id]) > 0
     )
 
-    const subtotal = cartProducts.reduce(
-        (total, item) =>
-            total + Number(item.price) * Number(cartItems[item._id]),
-        0
-    )
+    const subtotal = getTotalCartAmount()
 
     const deliveryFee = cartProducts.length > 0 ? deliveryCharge : 0
-    const total = subtotal + deliveryFee
-
-    const formatPrice = price =>
-        `${currency}${Number(price || 0).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        })}`
+    const total = (toCents(subtotal) + toCents(deliveryFee)) / 100
 
     if (loadingProductList || loadingCart) {
         return <p className="cart-loading">Loading cart...</p>
@@ -59,7 +50,7 @@ const Cart = () => {
 
                 {cartProducts.map(item => {
                     const quantity = Number(cartItems[item._id])
-                    const itemTotal = Number(item.price) * quantity
+                    const itemTotal = toCents(item.price) * quantity / 100
 
                     return (
                         <div key={item._id}>

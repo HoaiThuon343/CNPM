@@ -16,7 +16,7 @@ const ProductDisplay = ({
     const filteredProducts = (product_list || [])
         .filter(item => {
             const matchCategory =
-                category === 'All' || item.category === category
+                category === 'All' || item.category?.toLocaleLowerCase('vi') === category.toLocaleLowerCase('vi')
 
             const searchText =
                 `${item.name || ''} ${item.description || ''}`.toLowerCase()

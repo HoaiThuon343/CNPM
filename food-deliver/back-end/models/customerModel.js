@@ -8,6 +8,15 @@ const customerSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    addresses: [{
+        name: { type: String, required: true },
+        phone: { type: String, required: true },
+        address: { type: String, required: true },
+        ward: { type: String, required: true },
+        city: { type: String, required: true },
+        note: String,
+        isDefault: { type: Boolean, default: false },
+    }],
     phone: {
         type: String,
         trim: true,

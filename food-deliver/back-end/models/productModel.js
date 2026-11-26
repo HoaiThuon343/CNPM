@@ -1,11 +1,14 @@
 import mongoose from "mongoose";
+import { toCents } from '../../shared/money.js';
 
 const productSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
-    image: { type: String, required: true },
+    code: { type: String, trim: true, uppercase: true, unique: true, sparse: true },
+    image: { type: String, default: '' },
+    attributes: { type: String, trim: true, default: '' },
     description: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
-    price: { type: Number, required: true, min: 0 },
+    price: { type: Number, required: true, min: 0.01, set: value => toCents(value) / 100 },
     status: {
         type: String,
         enum: ["active", "out_of_stock", "inactive"],

@@ -22,6 +22,46 @@
     border-radius: 4px;
     outline-color: tomato;
 }
+.place-order-left :is(select, textarea) {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0 15px;
+    border: 1px solid #c5c5c5;
+    border-radius: 4px;
+}
+.place-order-left > button {
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.checkout-address-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1001;
+    background: #0007;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+}
+.checkout-address-dialog {
+    width: min(100%, 600px);
+    max-height: 90vh;
+    overflow: auto;
+    padding: 24px;
+    border-radius: 12px;
+    background: white;
+}
+.checkout-address-dialog button {
+    padding: 10px 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+}
 
 .place-order-left .multi-fields{
     display: flex;
@@ -33,5 +73,41 @@
 }
 .place-order .cart-total button{
     margin-top: 30px;
-    
+}
+
+.checkout-promo {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+.checkout-promo > div {
+    display: flex;
+    gap: 8px;
+}
+.checkout-promo input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid #c5c5c5;
+    border-radius: 4px;
+    font: inherit;
+}
+.place-order .checkout-promo button {
+    width: auto;
+    padding: 8px 14px;
+    margin: 0;
+}
+.checkout-promo p[role='alert'] {
+    color: #a33327;
+    font-size: 14px;
+}
+@media (max-width: 680px) {
+    .place-order {
+        flex-direction: column;
+        gap: 24px;
+        margin-top: 32px;
+    }
+    .place-order-left .title {
+        margin-bottom: 20px;
+    }
 }

@@ -9,7 +9,7 @@ import { toast } from 'react-toastify';
 const LoginPopup = ({ setShowLogin }) => {
     const { url, setToken, setRole } = useContext(StoreContext);
     const [currState, setCurrState] = useState('Login');
-    const [data, setData] = useState({ name: '', email: '', password: '' });
+    const [data, setData] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const onChangHandler = (event) => {
@@ -78,12 +78,17 @@ const LoginPopup = ({ setShowLogin }) => {
                         />
                     )}
 
+                    {currState !== 'Login' && (
+                        <input type="tel" name="phone" onChange={onChangHandler} value={data.phone}
+                            placeholder="Phone number" autoComplete="tel" required />
+                    )}
                     <input
-                        type="email"
+                        type={currState === 'Login' ? 'text' : 'email'}
                         name="email"
                         onChange={onChangHandler}
                         value={data.email}
-                        placeholder="Your Email"
+                        placeholder={currState === 'Login' ? 'Email or phone number' : 'Your Email'}
+                        autoComplete="username"
                         required
                     />
 
@@ -97,6 +102,10 @@ const LoginPopup = ({ setShowLogin }) => {
                         minLength={currState === 'Sign Up' ? 8 : undefined}
                         required
                     />
+                    {currState !== 'Login' && (
+                        <input type="password" name="confirmPassword" onChange={onChangHandler} value={data.confirmPassword}
+                            placeholder="Confirm password" autoComplete="new-password" required minLength={8} />
+                    )}
                 </div>
 
                 <button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Please wait...' : currState === 'Sign Up' ? 'Create Account' : 'Login'}</button>
